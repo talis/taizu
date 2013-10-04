@@ -23,7 +23,6 @@ module Taizu
       else
         jt = JobTracker.init(job.uniq, job.handle)
         jt.completed("Done")
-        puts data
         exit!
       end
     end
@@ -66,7 +65,7 @@ module Taizu
         end  
       end    
  
-      loop { gearman_worker.work }
+      loop {gearman_worker.work}
     end
     
     module ClassMethods

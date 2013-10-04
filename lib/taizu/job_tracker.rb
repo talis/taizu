@@ -12,12 +12,16 @@ module Taizu
     property :started, String, :length=>64
     property :finished, String, :length=>64  
     property :duration, String, :length=>64  
-    property :last_updated, DateTime, :default=>Time.now
+    property :last_updated, DateTime, :default=>DateTime.now
     property :parent_key, String, :length=>64, :index=>true    
     
     def self.init(uniq_id,handle=nil,task_name=nil)
       @args = {:unique_key=>uniq_id, :job_handle=>handle, :function_name=>task_name}      
-      jt = self.first_or_new(:unique_key=>uniq_id)
+      jt = self.first({:unique_key=>uniq_id})
+      unless jt
+        jt = self.new
+        jt.unique_key = uniq_id
+      end
       jt.job_handle = handle
       jt.function_name = task_name
       jt

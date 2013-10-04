@@ -16,22 +16,22 @@ class TextWorker
   # return an Array with the job response as the first value and the Job Tracker message as the second.
   def reverse(data, job)
     puts "Received job: #{job.handle}:#{job.uniq}"
-    data.reverse
+    puts data.reverse
   end    
   
   def capitalize(data, job)
     puts "Received job: #{job.handle}:#{job.uniq}"
-    data.upcase
+    puts data.upcase
   end    
 
   def lowercase(data, job)
     puts "Received job: #{job.handle}:#{job.uniq}"
-    data.downcase
+    puts data.downcase
   end 
   
   def add_spaces(data, job) 
     puts "Received job: #{job.handle}:#{job.uniq}"
-    data.gsub(/(.)/, '\1 ')    
+    puts data.gsub(/(.)/, '\1 ')
   end
 end
 

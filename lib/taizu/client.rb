@@ -16,24 +16,25 @@ module Taizu
       jt = JobTracker.init(opts[:uniq],nil,task_name)
       jt.queued(parent_uniq)
       args = opts_to_task_args(opts)
-      task = case
-      when (opts[:background]||opts[:bg]) then Gearman::BackgroundTask.new(task_name, data, args)
-      else Gearman::Task.new(task_name, data, args)
-      end   
-      unless opts[:on_fail]
-        task.on_fail do |t|
-          jt = JobTracker.init(task.uniq,nil,task_name)
-          jt.failed(t)
-          puts "Job #{task.uniq} failed\n"              
-        end  
-      end
-      unless opts[:on_exception]
-        task.on_exception do |t|
-          jt = JobTracker.init(task.uniq,nil,task_name)
-          puts "Job #{task.uniq} had an exception\n";
-          jt.failed(t)
-        end 
-      end 
+      task = Gearman::BackgroundTask.new(task_name, data, args)
+      #task = case
+      #when (opts[:background]||opts[:bg]) then Gearman::BackgroundTask.new(task_name, data, args)
+      #else Gearman::Task.new(task_name, data, args)
+      #end
+      #unless opts[:on_fail]
+      #  task.on_fail do |t|
+      #    jt = JobTracker.init(task.uniq,nil,task_name)
+      #    jt.failed(t)
+      #    puts "Job #{task.uniq} failed\n"
+      #  end
+      #end
+      #unless opts[:on_exception]
+      #  task.on_exception do |t|
+      #    jt = JobTracker.init(task.uniq,nil,task_name)
+      #    puts "Job #{task.uniq} had an exception\n";
+      #    jt.failed(t)
+      #  end
+      #end
       task           
     end
     

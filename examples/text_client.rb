@@ -17,7 +17,6 @@ class TextClient
     task.on_complete {|t| puts "Original downcase: #{t}\nNow let's reverse it.";reverse(t, task.uniq)}
     ts = Gearman::TaskSet.new(gearman_client)
     ts.add_task(task)
-    ts.wait
   end
 end
 
