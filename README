@@ -1,0 +1,212 @@
+Taizu -  Ruby interface to Temujin/Gearman
+
+What is Taizu?
+
+Let us first start with "what is Temujin"?  Temujin is a job tracking framework for the Gearman job queue server.  Out of the box, it is very difficult to track progress of jobs within Gearman and Temujin provides both a PHP API for creating job clients and workers as well as management console for monitoring running job queues.
+
+Taizu is a Ruby implementation of Temujin's API, with the addition of a server component to allow for some remote job execution and a RESTful interface to the Temujin job tracker to circumvent the need for local database libraries.
+
+Temujin is not actually needed to use Taizu, but Taizu does not include any management console.
+
+Using Taizu:
+
+Clients:
+
+Taizu clients are Ruby classes with Taizu::Client mixed in:
+
+	class ExampleClient
+		include Taizu::Client	
+		...
+	end
+	
+To expose worker tasks as Ruby methods, you can use the 'task' method.
+
+	class ExampleClient
+		include Taizu::Client
+		
+		task :exampleworker_1_reverse
+	end
+		
+This now creates a "reverse" method on the ExampleWorker object so:
+
+>> example_client = ExampleClient.new
+>> example_client.reverse("Hello World!") # This calls the task "exampleworker_1_reverse" in the Gearman network
+
+!dlroW olleH
+
+It is possible to set a method alias, if the task name would result in a naming collision or is for whatever reason undesirable:
+
+	class ExampleClient
+		include Taizu::Client
+		
+		task :exampleworker_1_capitalize, :alias=>:upcase # Creates an 'upcase' method on ExampleClient		
+	end
+end
+
+>> example_client = ExampleClient.new
+>> example_client.upcase("Hello World!") # This calls the task "exampleworker_1_capitalize" in the Gearman network
+
+HELLO WORLD!
+
+By default, the "task" methods will just accept a String as input and output the worker's response.
+
+For more sophisticated jobs, you can also add an "on_complete" (or "on_fail", "on_data", etc. - see the Gearman docs for the choices: http://rubydoc.info/gems/gearman-ruby/) Proc to the options:
+
+	class ExampleClient
+		include Taizu::Client
+		
+	  task :exampleworker_1_space_out, :on_complete=>Proc.new{ |response| puts "Spaced out -> #{response}" }
+	end
+
+>> example_client = ExampleClient.new
+>> example_client.space_out("Hello World!")
+
+Spaced out -> H e l l o  W o r l d !
+
+For complete flexibility, you can just add a regular Ruby method:
+
+	class ExampleClient
+		include Taizu::Client
+		
+		task :exampleworker_1_reverse
+		
+		# Accepts a String (data) and optional parent job unique key
+	  def foobar(data, parent_uniq=nil)
+			# init_task() is effectively like Gearman::Task.new, but includes setting up the JobTracker 
+	    task = init_task('exampleworker_1_lowercase', data, {}, parent_uniq) 
+			
+			# From here on out, it's just like any Gearman job
+	    task.on_complete {|t| puts "Original downcase: #{t}\nNow let's reverse it.";reverse(t, task.uniq)}
+	    ts = Gearman::TaskSet.new(gearman_client)
+	    ts.add_task(task)
+	    ts.wait
+	  end
+	end
+
+>> example_client = ExampleClient.new
+>> example_client.downcase("Hello World!")
+
+Original downcase: hello world!
+Now let's reverse it.
+!dlrow olleh
+
+Taizu Clients and Workers also would probably need gearman and database connection options set (they default to localhost:4730 for gearman and an in-memory adapter for db - the in-memory adapter is not shared between clients and workers, however - it's just a stub).  The simple way to do this is through the taizu command line interface, but you can also set it directly in your Ruby script:
+
+	class ExampleClient
+		include Taizu::Client
+		
+		Taizu.configure({"gearman"=>{"servers"=>"localhost:4730"}, "database"=>"sqlite:///tmp/gearman.sqlite"})
+
+		...
+	end
+
+Taizu workers are also just Ruby objects which mix in Taizu::Worker:
+
+	class ExampleWorker
+		include Taizu::Worker
+		
+		...
+	end
+
+Workers: 
+
+Like Taizu::Client, Taizu::Worker supplies several convenience class methods for registering your workers abilities with the gearman server:
+
+	class ExampleWorker
+		include Taizu::Worker
+	
+		# job_prefix establishes the Temujin worker "namespacing" convention to avoid task name collisions within gearman
+		
+		job_prefix exampleworker, 1 
+		
+		# thus all of the registered 'abilities' from this class would appear in gearman as 'exampleworker_1_{method_name}'
+		
+		# the 'abilities' class method identifies which methods defined in the class actually should respond to tasks
+		
+		abilities :reverse, :capitalize, :lowercase, :space_out=>:add_spaces
+		
+		# Use a hash (:space_out=>:add_spaces) to override a default method name
+		
+		# Then just define your methods:
+		
+	  def reverse(data, job)
+	    puts "Received job: #{job.handle}:#{job.uniq}"
+	    data.reverse
+	  end
+	
+		# Ability methods receive two arguments, the job data (String) and the Gearman::Job object
+		
+		...
+		
+	end
+
+>> require 'taizu'
+>> Taizu.configure({"gearman"=>{"servers"=>"localhost:4730"}, "database"=>"sqlite:///tmp/gearman.sqlite"})
+>> example_worker = ExampleWorker.new
+>> example_worker.work # One worker is now listening for jobs
+
+Command-line Interface (CLI):
+
+The simplest way to launch workers and clients is to use the taizu command-line interface (CLI), since it allows you to use multiple configurations for the same file (for local development vs. production, for example).  These configurations are called "environments".
+
+To get started:
+
+	$ taizu init {environment_name}
+	
+This will walk you through an interactive process, setting up your taizu home, and identifying gearman and database connection information.
+
+Let's say you set up an environment named "local" (taizu init local).
+
+To start 3 workers, you would:
+
+	$ taizu worker local /path/to/example_worker.rb 3
+	
+If you want to use a different Ruby VM (Ruby 1.9 or JRuby, say), you would just:
+
+	$ taizu worker local jruby:/path/to/example_worker.rb 3
+
+To start a client:
+
+	$ taizu job local /path/to/example_client.rb
+	
+Just like "taizu worker", you can replace the default VM.
+
+The CLI also lets you set up the Taizu Server which provides a RESTful interface to the JobTracker, as well as the ability to start registered workers on a remote host.
+
+First, the server must be configured:
+
+	$ taizu server config
+
+Which will walk you through the server settings.  Next you will need to add a user account:
+
+	$ taizu server user
+	
+You can also register workers:
+	
+	$ taizu server worker
+	
+To start the Taizu server:
+
+	$ taizu server start
+	
+The connection string for the RESTful Taizu server takes the form:
+	
+	rest://taizu-server-host:port/
+	
+Lastly, the CLI lets you list and launch remote workers (albeit crudely).
+
+	$ taizu remote host:port list
+	
+This will list the registered workers and show the output of "ps -ef" on the worker's command
+
+You can also filter that to a particular worker name:
+
+ $ taizu remote list host:port exampleworker_1
+
+To start workers:
+
+	$ taizu remote start host:port exampleworker_1 5
+	
+This will start 5 ExampleWorkers.  You will be prompted for a Taizu username/password.
+
+There is no way to stop or restart workers, currently.
