@@ -52,6 +52,7 @@ module Taizu
           task_name = task
           method_name = task
         end
+        puts "Adding: " + "#{self.class.namespace}_#{self.class.number}_#{task_name}\n"
         gearman_worker.add_ability("#{self.class.namespace}_#{self.class.number}_#{task_name}") do |data,job|
           jt = JobTracker.init(job.uniq, job.handle, "#{self.class.namespace}_#{self.class.number}_#{task_name}")
           jt.in_progress
